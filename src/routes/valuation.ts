@@ -15,6 +15,42 @@ import type { DCFAssumptions, LBOAssumptions } from '../types';
 const router = Router();
 
 
+// ─── GET /api/valuation/search?q=chipotle ────────────────────────────────────
+// Resolves a company name or partial ticker to matching tickers.
+// Lovable calls this before /start so "chipotle" → CMG.
+
+router.get('/search', async (req: Request, res: Response) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
+  if (!q || q.length < 2) {
+    return res.status(400).json({ success: false, error: 'q must be at least 2 characters' } satisfies ApiResponse);
+  }
+
+  try {
+    const axios = (await import('axios')).default;
+    const { data } = await axios.get('https://www.sec.gov/files/company_tickers.json', {
+      headers: { 'User-Agent': 'NexusValuation research@nexusvaluation.com' },
+      timeout: 10_000,
+    });
+
+    const entries = Object.values(data) as Array<{ cik_str: number; ticker: string; title: string }>;
+
+    // Match against ticker (exact prefix) OR company name (contains)
+    const results = entries
+      .filter(e =>
+        e.ticker.toLowerCase().startsWith(q) ||
+        e.title.toLowerCase().includes(q)
+      )
+      .slice(0, 8)
+      .map(e => ({ ticker: e.ticker, name: e.title }));
+
+    return res.json({ success: true, data: results } satisfies ApiResponse);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ success: false, error: message } satisfies ApiResponse);
+  }
+});
+
+
 // ─── POST /api/valuation/start ────────────────────────────────────────────────
 // Kick off a new valuation.
 // Returns the session ID immediately — processing happens in the background.
