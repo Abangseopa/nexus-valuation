@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   /\.lovable\.app$/,       // all Lovable preview URLs
   /\.lovableproject\.com$/, // Lovable custom domains
+  /\.malva\.company$/,     // malva.company custom domains (nexusaccelno.malva.company)
   /^http:\/\/localhost/,   // local dev
 ];
 
