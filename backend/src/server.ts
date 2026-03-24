@@ -8,24 +8,8 @@ const PORT = process.env.PORT || 3000;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-// CORS: allow Lovable preview/production domains + localhost dev
-// Add your custom domain here if you set one up later
-const allowedOrigins = [
-  /\.lovable\.app$/,       // all Lovable preview URLs
-  /\.lovableproject\.com$/, // Lovable custom domains
-  /\.malva\.company$/,     // malva.company custom domains (nexusaccelno.malva.company)
-  /^http:\/\/localhost/,   // local dev
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (curl, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    const allowed = allowedOrigins.some(pattern => pattern.test(origin));
-    callback(allowed ? null : new Error('Not allowed by CORS'), allowed);
-  },
-  credentials: true,
-}));
+// CORS: open to all origins — this is a public API, auth is handled via Supabase RLS
+app.use(cors());
 
 app.use(express.json());
 
