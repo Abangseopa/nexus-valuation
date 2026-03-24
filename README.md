@@ -1,6 +1,6 @@
 # Nexus Valuation
 
-AI-powered DCF and LBO valuation tool for public companies. Type any company name, and the system fetches real SEC EDGAR filings, generates a Claude-powered financial model, and produces a downloadable, formatted Excel workbook — all through a chat interface.
+AI-powered valuation tool for public companies. Type any company name, and the system fetches real SEC EDGAR filings, generates a Claude-powered financial model, and produces a downloadable, formatted Excel workbook — all through a chat interface.
 
 ---
 
