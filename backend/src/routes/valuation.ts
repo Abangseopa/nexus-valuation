@@ -224,12 +224,69 @@ async function runValuationPipeline(
 
     // ── Step 3: Run the valuation model ──────────────────────────────────────
     let excelBuffer: Buffer;
+    let modelExtras: Record<string, any> = {};
+
+    // ── Derive metrics from SEC historical data ───────────────────────────────
+    const stmts  = financialData.incomeStatements;
+    const latestBS = financialData.balanceSheets.at(-1);
+    const latestIS = stmts.at(-1);
+
+    const avgGrossMarginPct = stmts.filter(s => s.revenue > 0 && s.grossProfit > 0)
+      .reduce((acc, s, _, arr) => acc + s.grossProfit / s.revenue / arr.length, 0) || 0;
+
+    const avgInterestExpensePct = stmts.filter(s => s.revenue > 0 && s.interestExpense > 0)
+      .reduce((acc, s, _, arr) => acc + s.interestExpense / s.revenue / arr.length, 0) || 0;
+
+    // Full historical IS rows — stored as JSON so the browser can render historical columns
+    const historicalIS = stmts.map(s => ({
+      year:            s.year,
+      revenue:         s.revenue,
+      costOfRevenue:   s.costOfRevenue,
+      grossProfit:     s.grossProfit,
+      ebitda:          s.ebitda,
+      ebit:            s.ebit,
+      netIncome:       s.netIncome,
+      interestExpense: s.interestExpense,
+      taxExpense:      s.taxExpense,
+      da:              s.depreciationAmortization,
+      operatingExpenses: s.operatingExpenses,
+    }));
+
+    const historicalExtras = {
+      _grossMarginPct:       avgGrossMarginPct,
+      _interestExpensePct:   avgInterestExpensePct,
+      _baseNetIncome:        latestIS?.netIncome   ?? 0,
+      _baseCash:             latestBS?.cash        ?? 0,
+      _baseTotalDebt:        latestBS?.totalDebt   ?? 0,
+      _baseEBITDA:           latestIS?.ebitda      ?? 0,
+      _baseEBIT:             latestIS?.ebit        ?? 0,
+      _historicalIS:         historicalIS,          // full rows for historical columns
+    };
+
     if (valuationType === 'dcf') {
       const result = runDCF(financialData, assumptions as DCFAssumptions);
       excelBuffer  = await buildDCFExcel(financialData, result);
+      modelExtras = {
+        _baseRevenue:      result.baseRevenue,
+        _enterpriseValue:  result.enterpriseValue,
+        _equityValue:      result.equityValue,
+        _netDebt:          result.netDebt,
+        _terminalValue:    result.terminalValue,
+        _pvTerminalValue:  result.pvTerminalValue,
+        ...historicalExtras,
+      };
     } else {
       const result = runLBO(financialData, assumptions as LBOAssumptions);
       excelBuffer  = await buildLBOExcel(financialData, result);
+      modelExtras = {
+        _baseRevenue: financialData.incomeStatements.at(-1)?.revenue ?? 0,
+        _moic:        result.moic,
+        _irr:         result.irr,
+        _entryEquity: result.entryEquity,
+        _exitEquity:  result.exitEquity,
+        _entryDebt:   result.entryDebt,
+        ...historicalExtras,
+      };
     }
 
     // ── Step 4: Upload Excel to Supabase Storage ──────────────────────────────
@@ -241,9 +298,8 @@ async function runValuationPipeline(
       .catch(() => '');
 
     // ── Step 6: Mark complete ────────────────────────────────────────────────
-    // We stash the explanation inside the assumptions JSONB under _explanation.
-    // Since Supabase stores this as jsonb (no TypeScript enforcement), we cast via unknown.
-    const assumptionsWithExplanation = { ...assumptions, _explanation: explanation } as unknown as typeof assumptions;
+    // Stash explanation + model output numbers so the browser spreadsheet can render without re-fetching.
+    const assumptionsWithExplanation = { ...assumptions, _explanation: explanation, ...modelExtras } as unknown as typeof assumptions;
     await updateSession(sessionId, {
       status: 'complete',
       assumptions: assumptionsWithExplanation,
@@ -267,9 +323,11 @@ async function regenerateWithUpdatedAssumptions(
   try {
     const financialData = await getFinancialData(session.ticker);
 
-    // Strip the internal _explanation field before passing to Claude
+    // Strip internal underscore fields before passing to Claude
     const currentAssumptions = { ...session.assumptions } as Record<string, unknown>;
-    delete currentAssumptions['_explanation'];
+    for (const k of Object.keys(currentAssumptions)) {
+      if (k.startsWith('_')) delete currentAssumptions[k];
+    }
 
     const updatedAssumptions = await updateAssumptionsFromChat(
       currentAssumptions as unknown as DCFAssumptions | LBOAssumptions,
@@ -278,19 +336,59 @@ async function regenerateWithUpdatedAssumptions(
     );
 
     let excelBuffer: Buffer;
+    let modelExtras: Record<string, any> = {};
+
+    const stmtsR   = financialData.incomeStatements;
+    const latestBSR = financialData.balanceSheets.at(-1);
+    const latestISR = stmtsR.at(-1);
+    const histExtrasR = {
+      _grossMarginPct:     stmtsR.filter(s => s.revenue > 0 && s.grossProfit > 0).reduce((a, s, _, arr) => a + s.grossProfit / s.revenue / arr.length, 0) || 0,
+      _interestExpensePct: stmtsR.filter(s => s.revenue > 0 && s.interestExpense > 0).reduce((a, s, _, arr) => a + s.interestExpense / s.revenue / arr.length, 0) || 0,
+      _baseNetIncome:  latestISR?.netIncome ?? 0,
+      _baseCash:       latestBSR?.cash     ?? 0,
+      _baseTotalDebt:  latestBSR?.totalDebt ?? 0,
+      _baseEBITDA:     latestISR?.ebitda   ?? 0,
+      _baseEBIT:       latestISR?.ebit     ?? 0,
+      _historicalIS:   stmtsR.map(s => ({
+        year: s.year, revenue: s.revenue, costOfRevenue: s.costOfRevenue,
+        grossProfit: s.grossProfit, ebitda: s.ebitda, ebit: s.ebit,
+        netIncome: s.netIncome, interestExpense: s.interestExpense,
+        taxExpense: s.taxExpense, da: s.depreciationAmortization,
+        operatingExpenses: s.operatingExpenses,
+      })),
+    };
+
     if (session.valuationType === 'dcf') {
       const result = runDCF(financialData, updatedAssumptions as DCFAssumptions);
       excelBuffer  = await buildDCFExcel(financialData, result);
+      modelExtras  = {
+        _baseRevenue:     result.baseRevenue,
+        _enterpriseValue: result.enterpriseValue,
+        _equityValue:     result.equityValue,
+        _netDebt:         result.netDebt,
+        _terminalValue:   result.terminalValue,
+        _pvTerminalValue: result.pvTerminalValue,
+        ...histExtrasR,
+      };
     } else {
       const result = runLBO(financialData, updatedAssumptions as LBOAssumptions);
       excelBuffer  = await buildLBOExcel(financialData, result);
+      modelExtras  = {
+        _baseRevenue: financialData.incomeStatements.at(-1)?.revenue ?? 0,
+        _moic:        result.moic,
+        _irr:         result.irr,
+        _entryEquity: result.entryEquity,
+        _exitEquity:  result.exitEquity,
+        _entryDebt:   result.entryDebt,
+        ...histExtrasR,
+      };
     }
 
     const { filePath, fileUrl } = await uploadExcelFile(session.id, session.ticker, excelBuffer);
     const explanation = await explainAssumptions(financialData, updatedAssumptions, session.valuationType)
       .catch(() => '');
 
-    const updatedWithExplanation = { ...updatedAssumptions, _explanation: explanation } as unknown as typeof updatedAssumptions;
+    const updatedWithExplanation = { ...updatedAssumptions, _explanation: explanation, ...modelExtras } as unknown as typeof updatedAssumptions;
     await updateSession(session.id, {
       status: 'complete',
       assumptions: updatedWithExplanation,
