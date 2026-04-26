@@ -9,19 +9,19 @@ AccelNo is an AI-powered DCF and LBO financial modelling tool. Type any company 
 ## Screenshots
 
 ### Split-pane layout — spreadsheet left, AccelNo chat right
-![Split pane layout](screenshots/01-layout.png)
+![Split pane layout](screenshots/Screenshot%201.png)
 
 ### DCF model populating in real time — historical actuals + forecast columns
-![DCF model live](screenshots/02-dcf-model.png)
+![DCF model live](screenshots/Screenshot%202.png)
 
 ### Full income statement — Revenue → Gross Profit → EBITDA → EBIT → Net Income
-![Income statement](screenshots/03-income-statement.png)
+![Income statement](screenshots/Screenshot%203.png)
 
 ### Valuation summary — equity bridge + credit statistics
-![Valuation summary](screenshots/04-valuation-summary.png)
+![Valuation summary](screenshots/Screenshot%204.png)
 
 ### AccelNo chat panel — Home tab with key metrics and analyst notes
-![Home tab](screenshots/05-home-tab.png)
+![Home tab](screenshots/Screenshot%205.png)
 
 ---
 
