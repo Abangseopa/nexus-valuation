@@ -1,38 +1,79 @@
-# Nexus Valuation
+# AccelNo — Cursor for Financial Modelling
 
 **Live app: [nexusaccelno.malva.company](https://nexusaccelno.malva.company)**
 
-AI-powered DCF and LBO valuation tool for public companies. Type any company name, and the system fetches real SEC EDGAR filings, generates a Claude-powered financial model, and produces a downloadable, formatted Excel workbook — all through a chat interface.
+AccelNo is an AI-powered DCF and LBO financial modelling tool. Type any company name, and AccelNo fetches real SEC EDGAR 10-K filings, generates a Claude-powered financial model, and renders it live in a Goldman Sachs-grade spreadsheet — all inside a chat interface. No Excel required to get started.
+
 ---
 
 ## Screenshots
 
-### Welcome screen — recent valuations in sidebar
-![Welcome screen](screenshots/01-welcome.png)
+### Split-pane layout — spreadsheet left, AccelNo chat right
+![Split pane layout](screenshots/01-layout.png)
 
-### Starting a valuation — "please build an LBO for Coca Cola"
-![Starting valuation](screenshots/02-loading.png)
+### DCF model populating in real time — historical actuals + forecast columns
+![DCF model live](screenshots/02-dcf-model.png)
 
-### Completed LBO — analyst notes, key assumptions
-![LBO result](screenshots/03-lbo-result.png)
+### Full income statement — Revenue → Gross Profit → EBITDA → EBIT → Net Income
+![Income statement](screenshots/03-income-statement.png)
 
-### Edit assumptions + Download Excel
-![Edit assumptions](screenshots/04-edit-assumptions.png)
+### Valuation summary — equity bridge + credit statistics
+![Valuation summary](screenshots/04-valuation-summary.png)
 
-### Downloaded Excel — Summary tab (Coca Cola LBO)
-![Excel output](screenshots/05-excel-output.png)
+### AccelNo chat panel — Home tab with key metrics and analyst notes
+![Home tab](screenshots/05-home-tab.png)
 
 ---
 
-## How it works
+## What it does
 
-1. **User types** — *"Build me a DCF for Chipotle"* or *"LBO for Coca Cola"*
-2. **Company name resolves** to a ticker via SEC EDGAR (no manual ticker needed)
-3. **SEC filings are fetched** — 5 years of income statement, balance sheet, and cash flow data
-4. **Claude generates assumptions** — WACC, growth rates, margins, entry/exit multiples — grounded in historical data
-5. **Model is calculated** — full unlevered DCF or leveraged buyout math
-6. **Excel is generated** — 4-tab workbook: Summary, Assumptions, Model, Historical Data
-7. **User can adjust** — edit assumptions inline or type follow-ups like *"lower the entry multiple to 10x"*
+1. **Type naturally** — *"Build me a DCF for Chipotle"* or *"LBO for Microsoft"*
+2. **Company resolves automatically** — company name maps to SEC ticker, no manual entry needed
+3. **Historical 10-K data is fetched** — 3–5 years of actual income statement, balance sheet, and cash flow data from SEC EDGAR
+4. **Claude generates assumptions** — WACC, terminal growth, gross margins, SG&A, capex, NWC, entry/exit multiples — all grounded in historical data
+5. **Model runs and renders live in the browser** — the spreadsheet populates with historical actuals (FY2022A, FY2023A) followed by forecast years (FY2025E, FY2026E, …)
+6. **Excel is generated in parallel** — downloadable formatted workbook with 4 tabs
+7. **Adjust via chat** — type *"lower WACC to 9%"* or *"be more aggressive on growth"* to regenerate
+
+---
+
+## Spreadsheet model — what's included
+
+### Income Statement (historical actuals + 5-year forecast)
+- Revenues & Year-over-Year Growth
+- Cost of Revenues → **Gross Profit** + Gross Margin %
+- SG&A and Operating Expenses → **EBITDA** + EBITDA Margin %
+- D&A → **EBIT (Operating Income)** + EBIT Margin %
+- Net Interest Expense → **Pretax Income** → Tax Expense → **Net Income** + Net Margin %
+
+### Free Cash Flow Build
+- NOPAT (EBIT × (1 – Tax Rate))
+- (+) D&A · (–) CapEx · (–) Δ Net Working Capital
+- **Unlevered Free Cash Flow** + FCF Conversion ratio
+
+### DCF Analysis
+- Mid-year discount factors
+- PV of UFCFs per year
+- Gordon Growth terminal value + TV as % of Enterprise Value
+
+### Valuation Summary — Equity Bridge
+- Sum of PV(FCFs) + PV(Terminal Value) → **Enterprise Value**
+- (–) Net Debt → **Equity Value**
+- Implied EV/EBITDA exit multiple
+
+### Margin Analysis & Credit Statistics
+- Gross / EBITDA / EBIT / Net Income margins (historical + forecast)
+- Net Debt / EBITDA · Interest Coverage · FCF Conversion · CapEx / Revenue
+
+### LBO model additionally includes
+- Sources & Uses (entry EV, sponsor equity, debt financing)
+- Full income statement with interest expense and debt schedule
+- Year-by-year debt paydown with ending leverage ratios
+- Returns analysis: MOIC + IRR
+
+### Formula references (standard IB practice)
+- Input cells (yellow): hardcoded assumptions on the **Assumptions** tab
+- Calculation cells: cross-sheet formula references (`=Assumptions!$B$10`) — click any cell to see the formula in the formula bar
 
 ---
 
@@ -40,15 +81,30 @@ AI-powered DCF and LBO valuation tool for public companies. Type any company nam
 
 ```
 nexus-valuation/
-├── backend/          # Node.js/TypeScript API — deployed on Railway
+├── backend/                   # Node.js/TypeScript API — deployed on Railway
 │   ├── src/
-│   │   ├── routes/   # Express route handlers
-│   │   ├── services/ # SEC fetcher, Claude engine, valuation math, Excel generator, Supabase client
-│   │   └── types/    # Shared TypeScript types
-│   ├── supabase/     # schema.sql — run once in Supabase SQL Editor
+│   │   ├── routes/
+│   │   │   └── valuation.ts   # All API endpoints + background pipeline
+│   │   ├── services/
+│   │   │   ├── sec.ts         # SEC EDGAR fetcher (income statement, BS, CF)
+│   │   │   ├── claude.ts      # Assumption generation + chat updates
+│   │   │   ├── valuation.ts   # DCF and LBO model math
+│   │   │   ├── excel.ts       # ExcelJS workbook builder
+│   │   │   └── supabase.ts    # Session persistence + file storage
+│   │   └── types/index.ts     # Shared TypeScript types
+│   ├── supabase/schema.sql    # Run once in Supabase SQL Editor
+│   ├── railway.json           # Railway deploy config
 │   └── package.json
-├── screenshots/      # UI screenshots
-├── ui/               # Lovable frontend (see ui/README.md)
+├── ui/                        # React + Vite frontend
+│   └── src/
+│       ├── components/
+│       │   ├── SpreadsheetGrid.tsx   # Excel-like interactive grid
+│       │   └── ChatInterface.tsx     # AccelNo chat panel (Home/Data/Chat/Settings)
+│       ├── lib/
+│       │   ├── spreadsheet-utils.ts  # DCF/LBO cell + formula builders
+│       │   └── valuation-api.ts      # API client
+│       └── pages/Index.tsx           # Split-pane layout (spreadsheet + chat)
+├── screenshots/
 └── README.md
 ```
 
@@ -58,38 +114,40 @@ nexus-valuation/
 
 | Layer | Technology |
 |-------|-----------|
-| Backend API | Node.js + TypeScript + Express |
-| AI | Claude Sonnet 4.6 (Anthropic) |
-| Financial data | SEC EDGAR public API (free, no key required) |
+| Backend API | Node.js · TypeScript · Express |
+| AI engine | Claude Sonnet 4.6 (Anthropic) |
+| Financial data | SEC EDGAR public API — no key required |
 | Excel generation | ExcelJS |
 | Database + Storage | Supabase (Postgres + Storage buckets) |
-| Frontend | Lovable |
-| Deployment | Railway |
+| Frontend | React · Vite · Tailwind CSS |
+| Deployment | Railway (backend) |
 
 ---
 
-## Running the backend locally
+## Running locally
 
 ### Prerequisites
 - Node.js 18+
 - A Supabase project (free tier works)
 - An Anthropic API key
 
-### 1. Clone and install
+### 1. Clone
 
 ```bash
 git clone https://github.com/Abangseopa/nexus-valuation.git
-cd nexus-valuation/backend
-npm install
+cd nexus-valuation
 ```
 
-### 2. Set environment variables
+### 2. Backend
 
 ```bash
-cp .env.example .env
+cd backend
+npm install
+cp .env.example .env   # then fill in your keys
+npm run dev            # starts at http://localhost:3000
 ```
 
-Edit `.env`:
+`.env` values:
 
 ```env
 ANTHROPIC_API_KEY=your_anthropic_key
@@ -98,89 +156,79 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 PORT=3000
 ```
 
-### 3. Set up Supabase
+### 3. Supabase schema
 
-In your Supabase project → **SQL Editor** → paste and run `supabase/schema.sql`.
+In your Supabase project → **SQL Editor** → paste and run `backend/supabase/schema.sql`.
 
 This creates:
-- `valuation_sessions` — tracks every valuation request and its status
-- `sec_cache` — caches SEC data per ticker (24h TTL, avoids re-fetching)
-- `valuation-files` storage bucket — stores generated Excel files, served via signed URLs
+- `valuation_sessions` — tracks every valuation request and status
+- `sec_cache` — caches SEC EDGAR data per ticker (24h TTL)
+- `valuation-files` storage bucket — stores generated Excel files (signed URLs)
 
-### 4. Start the dev server
+### 4. Frontend
 
 ```bash
-npm run dev
+cd ui
+npm install
+npm run dev   # starts at http://localhost:5173
 ```
 
-API running at `http://localhost:3000`.
+The UI connects to the Railway production backend by default. To point it at your local backend, update `API_BASE` in `ui/src/lib/valuation-api.ts` to `http://localhost:3000`.
 
 ---
 
-## API endpoints
+## API reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/health` | Health check |
 | `GET` | `/api/valuation/search?q=chipotle` | Resolve company name → ticker |
 | `POST` | `/api/valuation/start` | Start a DCF or LBO — returns `sessionId` immediately |
-| `GET` | `/api/valuation/status/:id` | Poll for progress (`pending → fetching_data → generating → complete`) |
-| `POST` | `/api/valuation/chat` | Adjust assumptions via natural language, triggers Excel regeneration |
-| `GET` | `/api/valuation/download/:id` | Get a fresh signed download URL for the Excel file |
+| `GET` | `/api/valuation/status/:id` | Poll status: `pending → fetching_data → generating → complete` |
+| `POST` | `/api/valuation/chat` | Adjust assumptions via natural language, triggers regeneration |
+| `GET` | `/api/valuation/download/:id` | Get a fresh signed URL for the Excel file |
 | `GET` | `/api/valuation/sessions` | List recent sessions |
 
-### Example
+### Quick example
 
 ```bash
 # Start a DCF
 curl -X POST https://nexus-valuation-production.up.railway.app/api/valuation/start \
   -H "Content-Type: application/json" \
-  -d '{"ticker": "KO", "valuationType": "lbo"}'
+  -d '{"ticker": "CMG", "valuationType": "dcf"}'
 
-# Returns immediately:
 # { "success": true, "data": { "sessionId": "abc-123", "status": "pending" } }
 
-# Poll until complete
+# Poll until complete (usually 60–90 seconds)
 curl https://nexus-valuation-production.up.railway.app/api/valuation/status/abc-123
 ```
 
 ---
 
-## Excel output
-
-Each generated workbook has 4 tabs:
-
-| Tab | Contents |
-|-----|----------|
-| **Summary** | Key outputs — EV + equity value (DCF) or MOIC + IRR (LBO) |
-| **Assumptions** | All model inputs, amber-highlighted (standard IB convention) |
-| **DCF / LBO Model** | Full year-by-year model — UFCF waterfall or debt schedule |
-| **Historical Data** | Raw SEC data: income statement, margins, cash flows, balance sheet |
-
----
-
-## Deploying the backend
+## Deploying the backend to Railway
 
 ```bash
 cd backend
 railway login
-railway init        # name it "nexus-valuation"
-railway up
+railway init          # create service, set root directory to /backend
 railway variables set ANTHROPIC_API_KEY=...
 railway variables set SUPABASE_URL=...
 railway variables set SUPABASE_SERVICE_ROLE_KEY=...
-railway domain      # get your public URL
+git push origin main  # Railway auto-deploys on push
+railway domain        # get your public URL
 ```
 
-In Railway dashboard → Service Settings → **Root Directory** → set to `/backend`.
+In Railway dashboard → Service → **Root Directory** → `/backend`
+
+> **Note:** Supabase free tier pauses projects after ~1 week of inactivity. If API calls start failing, go to supabase.com/dashboard and click "Restore project".
 
 ---
 
 ## Environment variables
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key — [console.anthropic.com](https://console.anthropic.com) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (Supabase → Settings → API) |
-| `PORT` | Server port (default 3000 — Railway sets this automatically) |
+| Variable | Where to get it |
+|----------|-----------------|
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
+| `SUPABASE_URL` | Supabase → Project Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role key |
+| `PORT` | Set automatically by Railway; default 3000 locally |
