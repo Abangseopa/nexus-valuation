@@ -1,4 +1,4 @@
-# AccelNo — Cursor for Financial Modelling
+# Cursor for Financial Modelling
 
 **Live app: [nexusaccelno.malva.company](https://nexusaccelno.malva.company)**
 
